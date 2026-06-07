@@ -6,6 +6,8 @@ A lightweight, serverless AI pipeline that ingests raw business transcripts, sco
 
 ## Architecture
 
+![ScribeAudit AI Architecture](docs/architecture.png)
+
 ```text
   S3 Bucket (raw docs)
        │  OBJECT_CREATED
