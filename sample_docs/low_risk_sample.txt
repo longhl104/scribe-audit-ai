@@ -1,0 +1,40 @@
+Advisory Call Transcript — Q3 Performance Review
+Date: 2026-06-07
+Participants: CFO, Head of Finance, External Auditor
+
+---
+
+CFO: Good morning everyone. Let's begin with the Q3 results. Revenue came in at $4.2 billion,
+representing 5.3% growth year-over-year, which is comfortably within our guidance range of
+4–6%.
+
+Head of Finance: Correct. EBITDA margin held at 28.4%, a 40 basis-point improvement from the
+same period last year, driven primarily by operational efficiencies in the cloud division and
+reduced logistics costs in North America.
+
+External Auditor: We have completed the independent review of all major revenue recognition
+policies and found them to be fully compliant with IFRS 15. All transactions have been
+properly documented and reconciled against supporting contracts and invoices.
+
+CFO: Thank you. On the balance sheet side, we reduced net debt by $320 million through
+disciplined working capital management. Our leverage ratio now sits at 1.8x EBITDA, well
+below our covenant threshold of 3.5x.
+
+Head of Finance: The board approved the dividend reinvestment plan at the annual general
+meeting last month, with 62% of shareholders electing to reinvest. Share buybacks remain
+within the approved programme limits under the existing shareholder resolution.
+
+External Auditor: We are issuing an unqualified audit opinion for the quarter. All internal
+controls over financial reporting are operating effectively. No material weaknesses or
+significant deficiencies were identified during our review.
+
+CFO: Excellent. For Q4 guidance, we are projecting revenue in the range of $4.4–4.6 billion,
+assuming stable macro conditions. We will file the 10-Q with the SEC on schedule next week.
+
+Head of Finance: The treasury team has also completed the annual LIBOR transition
+documentation for all outstanding loan facilities, which are now benchmarked to SOFR.
+
+External Auditor: No further issues to report. Everything appears to be in order. The audit
+committee will receive the full management letter by end of week.
+
+[END OF TRANSCRIPT]

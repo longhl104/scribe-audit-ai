@@ -1,0 +1,3 @@
+# Lambda runtime already includes boto3.
+# List additional dependencies here only if you add them to the function.
+# aws-lambda-powertools>=2.0.0  # optional: structured logging / tracing
