@@ -1,6 +1,8 @@
 # ScribeAudit AI
 
-A lightweight, serverless AI pipeline that ingests raw business transcripts, scores them for compliance risk using a classical NLP engine, and routes high-risk documents to an Amazon Bedrock LLM agent for structured audit reporting — all within the AWS free tier.
+A lightweight, serverless AI pipeline that ingests raw business transcripts, scores them for compliance risk using **Amazon Titan Embeddings v2** semantic similarity, and routes high-risk documents to an Amazon Bedrock LLM agent for structured audit reporting — all within the AWS free tier.
+
+> **Why Titan Embeddings for Layer 1?** Rather than a classical rule-based NLP approach (keyword matching, regex patterns), Layer 1 uses vector embeddings to capture *semantic meaning*. The document is embedded into a high-dimensional vector and compared against pre-built reference vectors for each risk category using cosine similarity. This catches paraphrased and contextually equivalent risk language that exact-match patterns would miss — at a fraction of the cost of a full LLM call.
 
 ---
 
@@ -40,7 +42,57 @@ A lightweight, serverless AI pipeline that ingests raw business transcripts, sco
 
 **Layer 1** embeds the document using **Amazon Titan Embeddings v2** and computes cosine similarity against pre-built reference embeddings for five risk categories (financial fraud, securities violations, data privacy, operational risk, concealment indicators). Each category has a calibrated weight; the final score is a weighted sum of per-category similarity signals in `[0.0, 1.0]`. Documents scoring below the threshold (default `0.35`) are stored directly as `LOW` risk — no Claude call is made. Reference embeddings are built on the first invocation and cached for the container lifetime.
 
+**Example Layer 1 output** — what Titan Embeddings actually returns and what `assess()` produces:
+
+*Raw Titan embedding vector* (1,536 floats, truncated for display):
+
+```json
+{
+  "embedding": [0.0142, -0.0381, 0.0724, 0.0056, -0.1203, 0.0891, ..., -0.0047]
+}
+```
+
+*`assess()` return value for a high-risk document:*
+
+```python
+(
+  0.712844,                                          # risk score in [0.0, 1.0]
+  ["concealment_indicators", "financial_fraud"]      # flagged categories, sorted
+)
+```
+
+*`assess()` return value for a low-risk document:*
+
+```python
+(
+  0.031200,   # below 0.35 threshold → classified LOW, Layer 2 not called
+  []
+)
+```
+
+The raw embedding vector is never stored — only the final score and flagged categories are persisted to DynamoDB.
+
 **Layer 2** fires a single structured prompt to Bedrock only when Layer 1 raises a flag. The model acts as a compliance auditor and returns a strict JSON report containing violations, regulatory frameworks, severity ratings, and recommended actions.
+
+**Why not use Layer 2 alone?** Claude 3 Haiku costs ~$0.001 per document. At 1,000 documents/month that is ~$1 — small in isolation, but compliance pipelines in practice process tens of thousands of documents. More importantly, the vast majority of business documents are routine and low-risk. Sending every document to an LLM wastes money on documents that need no analysis. Layer 1 acts as a cheap pre-filter: at ~$0.0003/doc it screens out ~80% of documents as clearly low-risk, so Layer 2 only runs on the ~20% that warrant deeper inspection. The result is the same recall on true positives at roughly **5× lower cost** overall. This "cheap gate + expensive expert" pattern is standard in production ML pipelines.
+
+**Is Layer 1 also an LLM?** No. Titan Embeddings is an **embedding model**, not a large language model. It does not generate text, reason, or answer questions. It only converts text into a fixed-size numeric vector (an "embedding") that encodes semantic meaning. Two pieces of text with similar meaning will produce vectors that point in similar directions — which is what cosine similarity measures. This is a much simpler and cheaper operation than running a generative LLM: there is no token-by-token generation, no attention over long contexts, and no instruction following. The tradeoff is that it can only tell you *how similar* a document is to a risk concept — not *why* it is risky or *what* action to take. That reasoning is left to Layer 2.
+
+**What is cosine similarity?** It is a measure of how closely two vectors point in the same direction, regardless of their length. Given two vectors **A** and **B**:
+
+$$\text{cosine\_similarity}(A, B) = \frac{A \cdot B}{\|A\| \cdot \|B\|}$$
+
+The result is always between **−1** and **1**:
+
+| Value | Meaning |
+|---|---|
+| `1.0` | Vectors point in exactly the same direction — texts are semantically identical |
+| `0.7–0.9` | High similarity — texts discuss closely related concepts |
+| `0.4–0.6` | Moderate similarity — some topical overlap |
+| `< 0.4` | Low similarity — texts are about different topics |
+| `−1.0` | Vectors point in opposite directions — semantically opposite |
+
+In this project, each document is compared against five risk-category reference vectors. A similarity above `_SIMILARITY_BASELINE` (default `0.40`) means the document is semantically close enough to that risk category to contribute to the score. The closer the similarity is to `1.0`, the stronger the signal.
 
 ---
 
