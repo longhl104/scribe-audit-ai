@@ -83,7 +83,8 @@ class ScribeAuditStack(cdk.Stack):
                 "RISK_THRESHOLD": "0.35",
                 "BEDROCK_MODEL_ID": "anthropic.claude-3-haiku-20240307-v1:0",
                 "MAX_BEDROCK_CHARS": "4000",
-                "EMBEDDING_MODEL_ID": "amazon.titan-embed-text-v2:0",
+                "EMBEDDING_MODEL_ID": "cohere.embed-english-v3",
+                "REFERENCE_CACHE_BUCKET": f"scribe-audit-ingestion-{self.account}",
             },
             description="ScribeAudit AI: hybrid NLP + Bedrock compliance risk processor",
         )
@@ -114,8 +115,8 @@ class ScribeAuditStack(cdk.Stack):
         # ------------------------------------------------------------------
         # IAM — least-privilege permissions
         # ------------------------------------------------------------------
-        # S3: read uploaded documents only
-        ingestion_bucket.grant_read(audit_fn)
+        # S3: read uploaded documents + write reference embedding cache
+        ingestion_bucket.grant_read_write(audit_fn)
 
         # DynamoDB: write audit results only
         audit_table.grant_write_data(audit_fn)
@@ -129,6 +130,7 @@ class ScribeAuditStack(cdk.Stack):
                 resources=[
                     f"arn:aws:bedrock:{self.region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0",
                     f"arn:aws:bedrock:{self.region}::foundation-model/meta.llama3-8b-instruct-v1:0",
+                    f"arn:aws:bedrock:{self.region}::foundation-model/cohere.embed-english-v3",
                 ],
             )
         )

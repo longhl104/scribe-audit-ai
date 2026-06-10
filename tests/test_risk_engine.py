@@ -70,7 +70,7 @@ def _make_engine(*doc_vecs: List[float]) -> RiskEngine:
         vec = all_vecs[min(call_idx[0], len(all_vecs) - 1)]
         call_idx[0] += 1
         body = MagicMock()
-        body.read.return_value = json.dumps({"embedding": vec}).encode()
+        body.read.return_value = json.dumps({"embeddings": [vec]}).encode()
         return {"body": body}
 
     client = MagicMock()
