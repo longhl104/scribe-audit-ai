@@ -66,7 +66,7 @@ class TestLambdaHandler:
         body = json.loads(result["body"])
         assert len(body) == 1
         assert body[0]["risk_level"] == "LOW"
-        assert body[0]["risk_score"] < 0.35
+        assert body[0]["risk_score"] < 0.1
 
         # Verify DynamoDB put_item was called once with the correct risk_level
         mock_table.put_item.assert_called_once()

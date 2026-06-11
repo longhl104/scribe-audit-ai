@@ -19,7 +19,7 @@ A lightweight, serverless AI pipeline that ingests raw business transcripts, sco
   │  Layer 1: Semantic Risk Engine       │  ◄── ~$0.0003 / doc
   │  (Titan Embeddings cosine similarity)│
   │           │                          │
-  │    score < 0.35 ?                    │
+  │    score < 0.1 ?                    │
   │    ┌──────┴──────┐                   │
   │   YES            NO                  │
   │    │             │                   │
@@ -40,7 +40,7 @@ A lightweight, serverless AI pipeline that ingests raw business transcripts, sco
 | 1 — Risk scoring | Amazon Titan Embeddings v2 (cosine similarity) | Every document | ~$0.0003/doc |
 | 2 — Compliance agent | Amazon Bedrock (Claude 3 Haiku) | High-risk docs only | ~$0.001/doc |
 
-**Layer 1** embeds the document using **Amazon Titan Embeddings v2** and computes cosine similarity against pre-built reference embeddings for five risk categories (financial fraud, securities violations, data privacy, operational risk, concealment indicators). Each category has a calibrated weight; the final score is a weighted sum of per-category similarity signals in `[0.0, 1.0]`. Documents scoring below the threshold (default `0.35`) are stored directly as `LOW` risk — no Claude call is made. Reference embeddings are built on the first invocation and cached for the container lifetime.
+**Layer 1** embeds the document using **Amazon Titan Embeddings v2** and computes cosine similarity against pre-built reference embeddings for five risk categories (financial fraud, securities violations, data privacy, operational risk, concealment indicators). Each category has a calibrated weight; the final score is a weighted sum of per-category similarity signals in `[0.0, 1.0]`. Documents scoring below the threshold (default `0.1`) are stored directly as `LOW` risk — no Claude call is made. Reference embeddings are built on the first invocation and cached for the container lifetime.
 
 **Example Layer 1 output** — what Titan Embeddings actually returns and what `assess()` produces:
 
@@ -65,7 +65,7 @@ A lightweight, serverless AI pipeline that ingests raw business transcripts, sco
 
 ```python
 (
-  0.031200,   # below 0.35 threshold → classified LOW, Layer 2 not called
+  0.031200,   # below 0.1 threshold → classified LOW, Layer 2 not called
   []
 )
 ```
@@ -275,8 +275,8 @@ All runtime behaviour is controlled via Lambda environment variables (set in the
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DYNAMODB_TABLE` | `scribe-audit-results` | DynamoDB table name |
-| `RISK_THRESHOLD` | `0.35` | Score above which Layer 2 is triggered |
-| `BEDROCK_MODEL_ID` | `anthropic.claude-3-haiku-20240307-v1:0` | Bedrock model |
+| `RISK_THRESHOLD` | `0.1` | Score above which Layer 2 is triggered |
+| `BEDROCK_MODEL_ID` | `anthropic.claude-haiku-4-5-20251001-v1:0` | Bedrock model |
 | `MAX_BEDROCK_CHARS` | `4000` | Max characters sent to Claude per document |
 | `EMBEDDING_MODEL_ID` | `amazon.titan-embed-text-v2:0` | Titan model used for Layer 1 scoring |
 

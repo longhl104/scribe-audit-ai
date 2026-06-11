@@ -98,15 +98,15 @@ RISK_CATEGORIES: dict = {
 # for compliance text.  _SIMILARITY_BASELINE subtracts the expected background
 # level so that unrelated documents contribute ~0 to the score.
 # _SIMILARITY_SCALE amplifies the remaining signal so that a single category
-# with high similarity (≥ 0.80) can breach the default RISK_THRESHOLD of 0.35.
+# with high similarity (≥ 0.80) can breach the default RISK_THRESHOLD of 0.1.
 #
 # Tuning guide:
 #   • Raise _SIMILARITY_BASELINE → fewer false positives, more false negatives.
 #   • Lower _SIMILARITY_BASELINE → opposite.
-#   • RISK_THRESHOLD (handler env var, default 0.35) is the final gate.
+#   • RISK_THRESHOLD (handler env var, default 0.1) is the final gate.
 # ---------------------------------------------------------------------------
-_SIMILARITY_BASELINE: float = 0.40
-_SIMILARITY_SCALE: float = 4.0   # (1.0 - 0.40) * 4.0 * min_weight(0.15) ≈ 0.36 > 0.35
+_SIMILARITY_BASELINE: float = 0.32
+_SIMILARITY_SCALE: float = 4.0   # (1.0 - 0.32) * 4.0 * min_weight(0.15) ≈ 0.41 > 0.1
 
 
 class RiskEngine:
@@ -130,12 +130,10 @@ class RiskEngine:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _embed(self, text: str) -> List[float]:
-        """Invoke Cohere Embed and return the embedding vector.
+    def _embed_batch(self, texts: List[str]) -> List[List[float]]:
+        """Embed a batch of texts in a single Cohere Embed API call.
 
-        Cohere Embed accepts a list of texts and returns a list of embeddings.
-        We pass a single text and return the first embedding.
-
+        Cohere accepts up to 96 texts per call; each text must be <= 2048 chars.
         Retries up to _MAX_RETRIES times with exponential backoff + jitter
         on ThrottlingException or ServiceUnavailableException.
         """
@@ -146,11 +144,11 @@ class RiskEngine:
             try:
                 response = self._client.invoke_model(
                     modelId=EMBEDDING_MODEL_ID,
-                    body=json.dumps({"texts": [text], "input_type": "search_document"}),
+                    body=json.dumps({"texts": texts, "input_type": "search_document"}),
                     contentType="application/json",
                     accept="application/json",
                 )
-                return json.loads(response["body"].read())["embeddings"][0]
+                return json.loads(response["body"].read())["embeddings"]
             except Exception as exc:
                 error_code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
                 if error_code in ("ThrottlingException", "ServiceUnavailableException") and attempt < _MAX_RETRIES - 1:
@@ -162,6 +160,10 @@ class RiskEngine:
                     time.sleep(delay)
                 else:
                     raise
+
+    def _embed(self, text: str) -> List[float]:
+        """Embed a single text. Convenience wrapper around _embed_batch."""
+        return self._embed_batch([text])[0]
 
     def _load_bundled(self) -> Optional[dict]:
         """Load pre-computed reference embeddings from the file bundled with the Lambda."""
@@ -236,6 +238,19 @@ class RiskEngine:
         return refs
 
     @staticmethod
+    def _chunk_text(text: str, size: int = 1800, overlap: int = 200) -> List[str]:
+        """Split text into overlapping chunks, each within Cohere's 2048-char limit.
+
+        Overlapping windows ensure that risk language spanning a chunk boundary
+        is fully captured in at least one chunk.
+        """
+        chunks, i = [], 0
+        while i < len(text):
+            chunks.append(text[i:i + size])
+            i += size - overlap
+        return chunks
+
+    @staticmethod
     def _cosine_similarity(a: List[float], b: List[float]) -> float:
         """Cosine similarity between two vectors; returns 0.0 for zero-norm inputs."""
         dot = sum(x * y for x, y in zip(a, b))
@@ -270,11 +285,13 @@ class RiskEngine:
         The baseline removes background semantic similarity that any compliance
         text would naturally share.  _SIMILARITY_SCALE (4.0) is calibrated so
         that a single category with similarity ≥ 0.80 produces a contribution
-        above the default RISK_THRESHOLD of 0.35.  The final score is capped
+        above the default RISK_THRESHOLD of 0.1.  The final score is capped
         at 1.0.
 
-        Cohere Embed English v3 accepts up to 2048 characters per text; longer
-        documents are truncated to that limit before embedding.
+        Long documents are split into overlapping 1800-char chunks; each chunk is
+        embedded in a single batched Cohere API call.  Per-category similarity is
+        the maximum across all chunks, so risk language anywhere in the document
+        is detected regardless of position.
         """
         if not text or not text.strip():
             return 0.0, []
@@ -282,14 +299,19 @@ class RiskEngine:
         if self._references is None:
             self._references = self._build_references()
 
-        # Cohere Embed English v3 accepts up to 2048 characters per text
-        doc_vector = self._embed(text[:2048])
+        # Split into overlapping chunks and embed them all in one API call
+        chunks = self._chunk_text(text)
+        chunk_vectors = self._embed_batch(chunks)
+        logger.debug("Scored %d chunk(s) for document of %d chars.", len(chunks), len(text))
 
         total_score = 0.0
         flagged: list = []
 
         for category, data in self._references.items():
-            similarity = self._cosine_similarity(doc_vector, data["vector"])
+            # Max-pool: take the most similar chunk for each category
+            similarity = max(
+                self._cosine_similarity(cv, data["vector"]) for cv in chunk_vectors
+            )
             signal = max(0.0, similarity - _SIMILARITY_BASELINE)
             contribution = signal * _SIMILARITY_SCALE * data["weight"]
             total_score += contribution

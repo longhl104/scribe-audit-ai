@@ -37,11 +37,11 @@ N_CATS = len(RISK_CATEGORIES)           # 5
 CATEGORIES = list(RISK_CATEGORIES.keys())
 WEIGHTS = [d["weight"] for d in RISK_CATEGORIES.values()]
 
-THRESHOLD = 0.35  # mirrors RISK_THRESHOLD env var default
+THRESHOLD = 0.1  # mirrors RISK_THRESHOLD env var default
 
-# Use 8-dimensional vectors so a uniform doc vec has cosine similarity
-# 1/√8 ≈ 0.354 against each unit ref — comfortably below _SIMILARITY_BASELINE (0.40).
-VEC_DIM = 8
+# Use 11-dimensional vectors so a uniform doc vec has cosine similarity
+# 1/√11 ≈ 0.302 against each unit ref — comfortably below _SIMILARITY_BASELINE (0.32).
+VEC_DIM = 11
 
 
 def _unit_vec(idx: int) -> List[float]:
@@ -75,7 +75,11 @@ def _make_engine(*doc_vecs: List[float]) -> RiskEngine:
 
     client = MagicMock()
     client.invoke_model.side_effect = _invoke
-    return RiskEngine(bedrock_client=client)
+    engine = RiskEngine(bedrock_client=client)
+    # Disable bundled file and S3 cache so the mock client is always used for refs
+    engine._load_bundled = lambda: None
+    engine._load_cache = lambda: None
+    return engine
 
 
 def _expected_score(*doc_vecs_and_indices) -> float:
@@ -140,8 +144,8 @@ class TestEdgeCases:
 # ---------------------------------------------------------------------------
 class TestScoringMath:
     def test_below_baseline_similarity_produces_zero_contribution(self):
-        # A uniform vec of dimension VEC_DIM=8 has cosine similarity 1/√8 ≈ 0.354
-        # against every unit-vector ref — below _SIMILARITY_BASELINE (0.40) → signal=0.
+        # A uniform vec of dimension VEC_DIM=11 has cosine similarity 1/√11 ≈ 0.302
+        # against every unit-vector ref — below _SIMILARITY_BASELINE (0.32) → signal=0.
         engine = _make_engine(_uniform_vec(1.0))
         score, cats = engine.assess("low risk")
         assert score == 0.0
@@ -149,8 +153,8 @@ class TestScoringMath:
 
     def test_single_high_similarity_category_exceeds_threshold(self):
         # doc vec = unit vec for financial_fraud (idx 0), weight = 0.25
-        # cosine_sim = 1.0, signal = 1.0 - 0.40 = 0.60
-        # contribution = 0.60 * 4.0 * 0.25 = 0.60 → > THRESHOLD
+        # cosine_sim = 1.0, signal = 1.0 - 0.32 = 0.68
+        # contribution = 0.68 * 4.0 * 0.25 = 0.68 → > THRESHOLD
         engine = _make_engine(_unit_vec(0))
         score, cats = engine.assess("high risk financial document")
         assert score >= THRESHOLD
@@ -158,7 +162,7 @@ class TestScoringMath:
 
     def test_single_min_weight_category_exceeds_threshold(self):
         # data_privacy weight = 0.15 (minimum)
-        # contribution = 0.60 * 4.0 * 0.15 = 0.36 → just above THRESHOLD
+        # contribution = 0.68 * 4.0 * 0.15 = 0.408 → above THRESHOLD
         idx = CATEGORIES.index("data_privacy")
         engine = _make_engine(_unit_vec(idx))
         score, cats = engine.assess("data privacy violation document")
@@ -214,14 +218,14 @@ class TestScoringMath:
 # ---------------------------------------------------------------------------
 class TestLowRisk:
     def test_near_zero_similarity_is_low_risk(self):
-        # Uniform vec: sim = 1/√8 ≈ 0.354 < baseline (0.40) → signal=0 for all categories.
+        # Uniform vec: sim = 1/√11 ≈ 0.302 < baseline (0.32) → signal=0 for all categories.
         engine = _make_engine(_uniform_vec(0.10))
         score, cats = engine.assess("routine earnings report")
         assert score == 0.0
         assert cats == []
 
     def test_below_baseline_similarity_is_low_risk(self):
-        engine = _make_engine(_uniform_vec(0.35))
+        engine = _make_engine(_uniform_vec(0.1))
         score, _ = engine.assess("standard internal memo")
         assert score < THRESHOLD
 
