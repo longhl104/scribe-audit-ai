@@ -81,7 +81,7 @@ class ScribeAuditStack(cdk.Stack):
             environment={
                 "DYNAMODB_TABLE": audit_table.table_name,
                 "RISK_THRESHOLD": "0.1",
-                "BEDROCK_MODEL_ID": "anthropic.claude-haiku-4-5-20251001-v1:0",
+                "BEDROCK_MODEL_ID": "anthropic.claude-3-haiku-20240307-v1:0",
                 "MAX_BEDROCK_CHARS": "4000",
                 "EMBEDDING_MODEL_ID": "cohere.embed-english-v3",
                 "REFERENCE_CACHE_BUCKET": f"scribe-audit-ingestion-{self.account}",
@@ -128,7 +128,7 @@ class ScribeAuditStack(cdk.Stack):
                 effect=iam.Effect.ALLOW,
                 actions=["bedrock:InvokeModel"],
                 resources=[
-                    f"arn:aws:bedrock:{self.region}::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+                    f"arn:aws:bedrock:{self.region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0",
                     f"arn:aws:bedrock:{self.region}::foundation-model/meta.llama3-8b-instruct-v1:0",
                     f"arn:aws:bedrock:{self.region}::foundation-model/cohere.embed-english-v3",
                 ],
