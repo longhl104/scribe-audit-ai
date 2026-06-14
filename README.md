@@ -276,7 +276,7 @@ All runtime behaviour is controlled via Lambda environment variables (set in the
 |----------|---------|-------------|
 | `DYNAMODB_TABLE` | `scribe-audit-results` | DynamoDB table name |
 | `RISK_THRESHOLD` | `0.35` | Score above which Layer 2 is triggered |
-| `BEDROCK_MODEL_ID` | `anthropic.claude-3-haiku-20240307-v1:0` | Bedrock model |
+| `BEDROCK_MODEL_ID` | `anthropic.claude-haiku-4-5-20251001-v1:0` | Bedrock model |
 | `MAX_BEDROCK_CHARS` | `4000` | Max characters sent to Claude per document |
 | `EMBEDDING_MODEL_ID` | `amazon.titan-embed-text-v2:0` | Titan model used for Layer 1 scoring |
 
